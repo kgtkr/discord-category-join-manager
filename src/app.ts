@@ -74,8 +74,8 @@ client.on("message", async (msg) => {
               .map((channel) => channel.name.toLowerCase())
               .indexOf(role.name.toLowerCase()) !== -1
         )
+        .sort((a, b) => a.position - b.position)
         .map((role) => role.name)
-        .sort()
         .join("\n");
       await msg.reply(`\n${list}`);
     } else {
