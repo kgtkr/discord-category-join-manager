@@ -8,8 +8,8 @@ client.on("ready", () => {});
 function parseMessage(
   msg: string
 ): { type: "join" | "leave"; roleName: string } | null {
-  const joinRegexp = /(.+)カテゴリに入りたい/;
-  const leaveRegexp = /(.+)カテゴリから抜けたい/;
+  const joinRegexp = /(.+)(カテゴリ|カテ)に入りたい/;
+  const leaveRegexp = /(.+)(カテゴリ|カテ)(から|を)抜けたい/;
 
   {
     const joinResult = msg.match(joinRegexp);
@@ -54,7 +54,9 @@ client.on("message", async (msg) => {
     const roles = await guild.roles.fetch();
     const role = roles.cache
       .array()
-      .find((role) => role.name === parseResult.roleName);
+      .find(
+        (role) => role.name.toLowerCase() === parseResult.roleName.toLowerCase()
+      );
 
     if (role === undefined) {
       await msg.reply(
@@ -66,7 +68,10 @@ client.on("message", async (msg) => {
     const channel = guild.channels.cache
       .array()
       .filter((channel) => channel.type === "category")
-      .find((channel) => channel.name === parseResult.roleName);
+      .find(
+        (channel) =>
+          channel.name.toLowerCase() === parseResult.roleName.toLowerCase()
+      );
 
     if (channel === undefined) {
       await msg.reply(
