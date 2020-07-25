@@ -68,14 +68,15 @@ client.on("message", async (msg) => {
 
     if (parseResult.type === "list") {
       const list = roles
-        .filter((role) =>
-          channels
-            .map((channel) => channel.name.toLowerCase())
-            .indexOf(role.name.toLowerCase())
+        .filter(
+          (role) =>
+            channels
+              .map((channel) => channel.name.toLowerCase())
+              .indexOf(role.name.toLowerCase()) !== -1
         )
         .map((role) => role.name)
         .join("\n");
-      await msg.reply(list);
+      await msg.reply(`\n${list}`);
     } else {
       const role = roles.find(
         (role) => role.name.toLowerCase() === parseResult.roleName.toLowerCase()
