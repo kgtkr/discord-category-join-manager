@@ -7,9 +7,19 @@ client.on("ready", () => {});
 
 function parseMessage(
   msg: string
-): { type: "join" | "leave"; roleName: string } | null {
-  const joinRegexp = /(.+)(カテゴリ|カテ)に入りたい/;
-  const leaveRegexp = /(.+)(カテゴリ|カテ)(から|を)抜けたい/;
+): { type: "join" | "leave"; roleName: string } | { type: "list" } | null {
+  const joinRegexp = /(.+)(カテゴリ|カテゴリー|カテ)に入りたい/;
+  const leaveRegexp = /(.+)(カテゴリ|カテゴリー|カテ)(から|を)抜けたい/;
+  const listRegexp = /(カテ|カテゴリ|カテゴリー)一覧/;
+
+  {
+    const listResult = msg.match(listRegexp);
+    if (listResult !== null) {
+      return {
+        type: "list",
+      };
+    }
+  }
 
   {
     const joinResult = msg.match(joinRegexp);
@@ -51,52 +61,63 @@ client.on("message", async (msg) => {
       return;
     }
 
-    const roles = await guild.roles.fetch();
-    const role = roles.cache
+    const roles = (await guild.roles.fetch()).cache.array();
+    const channels = guild.channels.cache
       .array()
-      .find(
+      .filter((channel) => channel.type === "category");
+
+    if (parseResult.type === "list") {
+      const list = roles
+        .filter((role) =>
+          channels
+            .map((channel) => channel.name.toLowerCase())
+            .indexOf(role.name.toLowerCase())
+        )
+        .map((role) => role.name)
+        .join("\n");
+      await msg.reply(list);
+    } else {
+      const role = roles.find(
         (role) => role.name.toLowerCase() === parseResult.roleName.toLowerCase()
       );
 
-    if (role === undefined) {
-      await msg.reply(
-        `「${parseResult.roleName}」という名前のロールは存在しません。`
-      );
-      return;
-    }
+      if (role === undefined) {
+        await msg.reply(
+          `「${parseResult.roleName}」という名前のロールは存在しません。`
+        );
+        return;
+      }
 
-    const channel = guild.channels.cache
-      .array()
-      .filter((channel) => channel.type === "category")
-      .find(
+      const channel = channels.find(
         (channel) =>
           channel.name.toLowerCase() === parseResult.roleName.toLowerCase()
       );
 
-    if (channel === undefined) {
-      await msg.reply(
-        `「${parseResult.roleName}」という名前のカテゴリは存在しません。`
-      );
-      return;
-    }
-
-    try {
-      if (parseResult.type === "join") {
-        await member.roles.add(role);
-      } else {
-        await member.roles.remove(role);
+      if (channel === undefined) {
+        await msg.reply(
+          `「${parseResult.roleName}」という名前のカテゴリは存在しません。`
+        );
+        return;
       }
-    } catch {
-      await msg.reply(
-        `ロール設定に失敗しました。権限設定に誤りがある可能性があります。`
-      );
-      return;
-    }
 
-    if (parseResult.type === "join") {
-      await msg.reply(`「${parseResult.roleName}」ロールを付与しました。`);
-    } else {
-      await msg.reply(`「${parseResult.roleName}」ロールを削除しました。`);
+      try {
+        if (parseResult.type === "join") {
+          await member.roles.add(role);
+        } else {
+          await member.roles.remove(role);
+        }
+      } catch {
+        await msg.reply(
+          `ロール設定に失敗しました。権限設定に誤りがある可能性があります。`
+        );
+        return;
+      }
+
+      if (parseResult.type === "join") {
+        await msg.reply(`「${parseResult.roleName}」ロールを付与しました。`);
+      } else {
+        await msg.reply(`「${parseResult.roleName}」ロールを削除しました。`);
+      }
     }
   } catch (e) {
     console.error(e);
