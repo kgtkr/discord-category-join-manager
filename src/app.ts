@@ -75,6 +75,7 @@ client.on("message", async (msg) => {
               .indexOf(role.name.toLowerCase()) !== -1
         )
         .map((role) => role.name)
+        .sort()
         .join("\n");
       await msg.reply(`\n${list}`);
     } else {
