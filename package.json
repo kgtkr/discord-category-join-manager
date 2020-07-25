@@ -1,0 +1,20 @@
+{
+  "name": "discord-category-join-manager",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "node ./dist/app.js",
+    "build": "tsc"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^14.0.26",
+    "@types/ws": "^7.2.6",
+    "typescript": "^3.9.7"
+  },
+  "dependencies": {
+    "discord.js": "^12.2.0"
+  }
+}
