@@ -7,7 +7,10 @@ client.on("ready", () => {});
 
 function parseMessage(
   msg: string
-): { type: "join" | "leave"; roleName: string } | { type: "list" } | null {
+):
+  | { type: "join" | "leave"; roleSelector: string | number }
+  | { type: "list" }
+  | null {
   const joinRegexp = /(.+)(カテゴリ|カテゴリー|カテ)に入りたい/;
   const leaveRegexp = /(.+)(カテゴリ|カテゴリー|カテ)(から|を)抜けたい/;
   const listRegexp = /(カテ|カテゴリ|カテゴリー)一覧/;
@@ -24,9 +27,10 @@ function parseMessage(
   {
     const joinResult = msg.match(joinRegexp);
     if (joinResult !== null) {
+      const index = Number(joinResult[1]);
       return {
         type: "join",
-        roleName: joinResult[1],
+        roleSelector: isNaN(index) ? joinResult[1] : index - 1,
       };
     }
   }
@@ -34,9 +38,10 @@ function parseMessage(
   {
     const leaveResult = msg.match(leaveRegexp);
     if (leaveResult !== null) {
+      const index = Number(leaveResult[1]);
       return {
         type: "leave",
-        roleName: leaveResult[1],
+        roleSelector: isNaN(index) ? leaveResult[1] : index - 1,
       };
     }
   }
@@ -61,43 +66,35 @@ client.on("message", async (msg) => {
       return;
     }
 
-    const roles = (await guild.roles.fetch()).cache.array();
+    const roles = (await guild.roles.fetch()).cache
+      .array()
+      .filter(
+        (role) =>
+          channels
+            .map((channel) => channel.name.toLowerCase())
+            .indexOf(role.name.toLowerCase()) !== -1
+      )
+      .sort((a, b) => b.position - a.position);
+
     const channels = guild.channels.cache
       .array()
       .filter((channel) => channel.type === "category");
 
     if (parseResult.type === "list") {
-      const list = roles
-        .filter(
-          (role) =>
-            channels
-              .map((channel) => channel.name.toLowerCase())
-              .indexOf(role.name.toLowerCase()) !== -1
-        )
-        .sort((a, b) => b.position - a.position)
-        .map((role) => role.name)
-        .join("\n");
+      const list = roles.map((role, i) => `${i + 1}: ${role.name}`).join("\n");
       await msg.reply(`\n${list}`);
     } else {
-      const role = roles.find(
-        (role) => role.name.toLowerCase() === parseResult.roleName.toLowerCase()
+      const role = roles.find((role, i) =>
+        typeof parseResult.roleSelector === "string"
+          ? role.name.toLowerCase() === parseResult.roleSelector.toLowerCase()
+          : i === parseResult.roleSelector
       );
 
       if (role === undefined) {
         await msg.reply(
-          `「${parseResult.roleName}」という名前のロールは存在しません。`
-        );
-        return;
-      }
-
-      const channel = channels.find(
-        (channel) =>
-          channel.name.toLowerCase() === parseResult.roleName.toLowerCase()
-      );
-
-      if (channel === undefined) {
-        await msg.reply(
-          `「${parseResult.roleName}」という名前のカテゴリは存在しません。`
+          typeof parseResult.roleSelector === "string"
+            ? `「${parseResult.roleSelector}」というカテゴリは存在しません。`
+            : `${parseResult.roleSelector + 1}番目のカテゴリは存在しません。`
         );
         return;
       }
@@ -116,9 +113,9 @@ client.on("message", async (msg) => {
       }
 
       if (parseResult.type === "join") {
-        await msg.reply(`「${parseResult.roleName}」ロールを付与しました。`);
+        await msg.reply(`「${role.name}」ロールを付与しました。`);
       } else {
-        await msg.reply(`「${parseResult.roleName}」ロールを削除しました。`);
+        await msg.reply(`「${role.name}」ロールを削除しました。`);
       }
     }
   } catch (e) {
