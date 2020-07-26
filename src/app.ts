@@ -66,6 +66,10 @@ client.on("message", async (msg) => {
       return;
     }
 
+    const channels = guild.channels.cache
+      .array()
+      .filter((channel) => channel.type === "category");
+
     const roles = (await guild.roles.fetch()).cache
       .array()
       .filter(
@@ -75,10 +79,6 @@ client.on("message", async (msg) => {
             .indexOf(role.name.toLowerCase()) !== -1
       )
       .sort((a, b) => b.position - a.position);
-
-    const channels = guild.channels.cache
-      .array()
-      .filter((channel) => channel.type === "category");
 
     if (parseResult.type === "list") {
       const list = roles.map((role, i) => `${i + 1}: ${role.name}`).join("\n");
