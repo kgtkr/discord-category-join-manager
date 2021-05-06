@@ -81,7 +81,11 @@ client.on("message", async (msg) => {
       .sort((a, b) => b.position - a.position);
 
     if (parseResult.type === "list") {
-      const list = roles.map((role, i) => `${i + 1}: ${role.name}`).join("\n");
+      await guild.members.fetch();
+
+      const list = roles
+        .map((role, i) => `${i + 1}: ${role.name} (${role.members.size}人)`)
+        .join("\n");
       await msg.reply(`\n${list}`);
     } else {
       const role = roles.find((role, i) =>
