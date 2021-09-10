@@ -1,132 +1,213 @@
 import * as Discord from "discord.js";
 import * as fs from "fs";
+import { REST } from "@discordjs/rest";
+import { Routes } from "discord-api-types/v9";
+import { SlashCommandBuilder } from "@discordjs/builders";
 
-const client = new Discord.Client();
+const config: { token: string; appId: string; guildId: string } = JSON.parse(
+  fs.readFileSync("config.json", { encoding: "utf8" })
+);
+
+const rest = new REST({ version: "9" }).setToken(config.token);
+const client = new Discord.Client({
+  intents: [Discord.Intents.FLAGS.GUILDS, Discord.Intents.FLAGS.GUILD_MEMBERS],
+});
+
+const commands = [
+  new SlashCommandBuilder()
+    .setName("here")
+    .setDescription("カテゴリのゴーレムを召喚"),
+].map((command) => command.toJSON());
+
+(async () => {
+  try {
+    await rest.put(
+      Routes.applicationGuildCommands(config.appId, config.guildId),
+      {
+        body: commands,
+      }
+    );
+  } catch (error) {
+    console.error(error);
+  }
+})();
 
 client.on("ready", () => {});
 
-function parseMessage(
-  msg: string
-):
-  | { type: "join" | "leave"; roleSelector: string | number }
-  | { type: "list" }
-  | null {
-  const joinRegexp = /(.+)(カテゴリ|カテゴリー|カテ)に入りたい/;
-  const leaveRegexp = /(.+)(カテゴリ|カテゴリー|カテ)(から|を)抜けたい/;
-  const listRegexp = /(カテ|カテゴリ|カテゴリー)一覧/;
+async function fetchRoles(
+  interaction:
+    | Discord.BaseCommandInteraction
+    | Discord.MessageComponentInteraction
+): Promise<Discord.Role[] | null> {
+  const channels = (await interaction.guild?.channels.fetch())
+    ?.toJSON()
+    .filter((channel) => channel.type === "GUILD_CATEGORY");
 
-  {
-    const listResult = msg.match(listRegexp);
-    if (listResult !== null) {
-      return {
-        type: "list",
-      };
-    }
+  if (channels === undefined) {
+    await interaction.reply({
+      content: "[Internal Error] カテゴリ一覧取得に失敗しました",
+      ephemeral: true,
+    });
+    return null;
   }
 
-  {
-    const joinResult = msg.match(joinRegexp);
-    if (joinResult !== null) {
-      const index = Number(joinResult[1]);
-      return {
-        type: "join",
-        roleSelector: isNaN(index) ? joinResult[1] : index - 1,
-      };
-    }
+  await interaction.guild?.members.fetch();
+
+  const roles = (await interaction.guild?.roles?.fetch())
+    ?.toJSON()
+    .filter(
+      (role) =>
+        channels
+          .map((channel) => channel.name.toLowerCase())
+          .indexOf(role.name.toLowerCase()) !== -1
+    )
+    .sort((a, b) => b.position - a.position);
+
+  if (roles === undefined) {
+    await interaction.reply({
+      content: "[Internal Error] ロール一覧取得に失敗しました",
+      ephemeral: true,
+    });
+    return null;
   }
 
-  {
-    const leaveResult = msg.match(leaveRegexp);
-    if (leaveResult !== null) {
-      const index = Number(leaveResult[1]);
-      return {
-        type: "leave",
-        roleSelector: isNaN(index) ? leaveResult[1] : index - 1,
-      };
-    }
-  }
-
-  return null;
+  return roles;
 }
 
-client.on("message", async (msg) => {
-  try {
-    const guild = msg.guild;
-    if (guild === null) {
-      return;
-    }
+client.on("interactionCreate", async (interaction) => {
+  if (interaction.isCommand()) {
+    if (interaction.commandName === "here") {
+      const roles = await fetchRoles(interaction);
+      if (roles === null) {
+        return;
+      }
 
-    const member = msg.member;
-    if (member === null) {
-      return;
-    }
-
-    const parseResult = parseMessage(msg.content);
-    if (parseResult === null) {
-      return;
-    }
-
-    const channels = guild.channels.cache
-      .array()
-      .filter((channel) => channel.type === "category");
-
-    const roles = (await guild.roles.fetch()).cache
-      .array()
-      .filter(
-        (role) =>
-          channels
-            .map((channel) => channel.name.toLowerCase())
-            .indexOf(role.name.toLowerCase()) !== -1
-      )
-      .sort((a, b) => b.position - a.position);
-
-    if (parseResult.type === "list") {
-      await guild.members.fetch();
-
-      const list = roles
-        .map((role, i) => `${i + 1}: ${role.name} (${role.members.size}人)`)
-        .join("\n");
-      await msg.reply(`\n${list}`);
-    } else {
-      const role = roles.find((role, i) =>
-        typeof parseResult.roleSelector === "string"
-          ? role.name.toLowerCase() === parseResult.roleSelector.toLowerCase()
-          : i === parseResult.roleSelector
+      const row = new Discord.MessageActionRow().addComponents(
+        new Discord.MessageSelectMenu()
+          .setCustomId("role_ids_selector")
+          .setPlaceholder("カテゴリを選択")
+          .setMaxValues(roles.length)
+          .addOptions(
+            roles.map((role) => ({
+              label: `${role.name} (${role.members.size}人)`,
+              value: role.id,
+              default:
+                role.members
+                  .toJSON()
+                  .findIndex(
+                    (member) => member.id === interaction.member?.user.id
+                  ) !== -1,
+            }))
+          )
       );
 
-      if (role === undefined) {
-        await msg.reply(
-          typeof parseResult.roleSelector === "string"
-            ? `「${parseResult.roleSelector}」というカテゴリは存在しません。`
-            : `${parseResult.roleSelector + 1}番目のカテゴリは存在しません。`
-        );
+      await interaction.reply({
+        content: "Hi!",
+        components: [row],
+        ephemeral: true,
+      });
+    }
+  }
+
+  if (interaction.isSelectMenu()) {
+    if (interaction.customId === "role_ids_selector") {
+      const roles = await fetchRoles(interaction);
+      if (roles === null) {
         return;
       }
+
+      const member = interaction.member;
+      if (member === null) {
+        await interaction.reply({
+          content: "[Internal Error] メンバー取得に失敗しました",
+          ephemeral: true,
+        });
+        return;
+      }
+
+      const guildId = interaction.guildId;
+      if (guildId === null) {
+        await interaction.reply({
+          content: "[Internal Error] guildId取得に失敗しました",
+          ephemeral: true,
+        });
+        return;
+      }
+
+      const currentRoleIds = (() => {
+        const val = member.roles;
+        if (Array.isArray(val)) {
+          return val;
+        } else if (val === undefined) {
+          return undefined;
+        } else {
+          return (val as any).member._roles as string[];
+        }
+      })();
+
+      if (currentRoleIds === undefined) {
+        await interaction.reply({
+          content: "[Internal Error] 現在のロール一覧取得に失敗しました",
+          ephemeral: true,
+        });
+        return;
+      }
+      const currentRoleIdSet = new Set(currentRoleIds);
+      const targetRoleIds = interaction.values;
+      const targetRoleIdSet = new Set(targetRoleIds);
+      const leaveRoleIds = currentRoleIds.filter(
+        (id) => !targetRoleIdSet.has(id)
+      );
+      const joinRoleIds = targetRoleIds.filter(
+        (id) => !currentRoleIdSet.has(id)
+      );
 
       try {
-        if (parseResult.type === "join") {
-          await member.roles.add(role);
-        } else {
-          await member.roles.remove(role);
+        for (const id of leaveRoleIds) {
+          await rest.delete(
+            Routes.guildMemberRole(guildId, member.user.id, id),
+            {}
+          );
         }
-      } catch {
-        await msg.reply(
-          `ロール設定に失敗しました。権限設定に誤りがある可能性があります。`
-        );
+
+        for (const id of joinRoleIds) {
+          await rest.put(
+            Routes.guildMemberRole(guildId, member.user.id, id),
+            {}
+          );
+        }
+      } catch (e) {
+        console.error(e);
+        await interaction.reply({
+          content: "[Internal Error] いくつかのロール付与/削除に失敗しました。",
+          ephemeral: true,
+        });
         return;
       }
 
-      if (parseResult.type === "join") {
-        await msg.reply(`「${role.name}」ロールを付与しました。`);
-      } else {
-        await msg.reply(`「${role.name}」ロールを削除しました。`);
-      }
+      const joinMessage =
+        joinRoleIds.length !== 0
+          ? `${joinRoleIds
+              .map(
+                (id) => roles.find((role) => role.id === id)?.name ?? String(id)
+              )
+              .join(",")}に入りました。`
+          : ``;
+
+      const leaveMessage =
+        leaveRoleIds.length !== 0
+          ? `${leaveRoleIds
+              .map(
+                (id) => roles.find((role) => role.id === id)?.name ?? String(id)
+              )
+              .join(",")}から抜けました。`
+          : ``;
+
+      await interaction.reply({
+        content: `<@${member.user.id}> が ${joinMessage}${leaveMessage}`,
+      });
     }
-  } catch (e) {
-    console.error(e);
   }
 });
 
-client.login(
-  JSON.parse(fs.readFileSync("config.json", { encoding: "utf8" })).token
-);
+client.login(config.token);
