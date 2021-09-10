@@ -134,7 +134,7 @@ client.on("interactionCreate", async (interaction) => {
         return;
       }
 
-      const currentRoleIds = (() => {
+      const currentRoleIds_ = (() => {
         const val = member.roles;
         if (Array.isArray(val)) {
           return val;
@@ -145,13 +145,18 @@ client.on("interactionCreate", async (interaction) => {
         }
       })();
 
-      if (currentRoleIds === undefined) {
+      if (currentRoleIds_ === undefined) {
         await interaction.reply({
           content: "[Internal Error] 現在のロール一覧取得に失敗しました",
           ephemeral: true,
         });
         return;
       }
+
+      const currentRoleIds = currentRoleIds_.filter(
+        (id) => roles.findIndex((role) => role.id === id) !== -1
+      );
+
       const currentRoleIdSet = new Set(currentRoleIds);
       const targetRoleIds = interaction.values;
       const targetRoleIdSet = new Set(targetRoleIds);
