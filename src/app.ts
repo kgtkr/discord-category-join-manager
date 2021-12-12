@@ -66,6 +66,10 @@ client.on("message", async (msg) => {
       return;
     }
 
+    await msg.reply(
+      "このコマンドは非推奨です。スラッシュコマンド `\\here` を使ってください。"
+    );
+
     const channels = guild.channels.cache
       .array()
       .filter((channel) => channel.type === "category");
