@@ -67,7 +67,7 @@ client.on("message", async (msg) => {
     }
 
     await msg.reply(
-      "このコマンドは非推奨です。スラッシュコマンド `\\here` を使ってください。"
+      "このコマンドは非推奨です。スラッシュコマンド `/here` を使ってください。"
     );
 
     const channels = guild.channels.cache
