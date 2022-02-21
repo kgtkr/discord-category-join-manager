@@ -1,8 +1,5 @@
 name: ci
-on:
-  push:
-    branches:
-      - use-message-command
+on: push
 jobs:
   docker:
     runs-on: ubuntu-latest
