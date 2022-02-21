@@ -23,7 +23,13 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
-          password: ${{ secrets.PAT }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      -
+        name: Generate tags
+        uses: kgtkr/docker-tags-gen-action@master
+        id: tags
+        with:
+          name: ghcr.io/${{ github.repository_owner }}/discord-category-join-manager
       -
         name: Build and push
         uses: docker/build-push-action@v2
@@ -31,4 +37,6 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/discord-category-join-manager:use-message-command-${{ github.sha }}
+          tags: ${{ steps.tags.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
